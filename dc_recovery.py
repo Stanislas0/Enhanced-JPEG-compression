@@ -1,33 +1,12 @@
 """
 DC recovery from DC-free JPEG images.
 Author: Qinkai ZHENG
-
-Package version:
-cv2 3.4.2
-numpy 1.15.4
+Email: qinkai.zheng1028@gmail.com
 """
 
 import cv2
+import argparse
 import numpy as np
-
-
-# Initialisation
-patch_size = 8
-image_shape = (256, 256)
-[w, h] = image_shape
-w_n = w // patch_size
-h_n = h // patch_size
-DC_range = np.arange(-64, 65)
-
-# Quantization matrix
-Q = [[16, 11, 10, 16, 24, 40, 51, 61],
-     [12, 12, 14, 19, 26, 58, 60, 55],
-     [14, 13, 16, 24, 40, 57, 69, 56],
-     [14, 17, 22, 29, 51, 87, 80, 62],
-     [18, 22, 37, 56, 68, 109, 103, 77],
-     [24, 35, 55, 64, 81, 104, 113, 92],
-     [49, 64, 78, 87, 103, 121, 120, 101],
-     [72, 92, 95, 98, 112, 100, 130, 99]]
 
 
 def read_image(image_path):
@@ -64,56 +43,6 @@ def dct_transform(image, mode='compress', dc_free=False):
                 dct_coefs[i, j] = dct
 
     return dct_coefs
-
-
-def estimate_0(dct_target, dct_left=False, dct_up=False, dct_right=False, dct_down=False):
-    """
-    Estimation of DCT coefficients with the help of adjacent blocks.
-    :param dct_target: ndarray, DCT of target block
-    :param dct_left: ndarray, DCT of left block
-    :param dct_up: ndarray, DCT of upper block
-    :param dct_right: ndarray, DCT of right block
-    :param dct_down: ndarray, DCT of nether block
-    :return: dc_optimal: float, optimal value of DC prediction
-    """
-    mse_min = np.inf
-    dc_optimal = 0.
-    if dct_left is not False:
-        spatial_left = cv2.idct(dct_left * Q) + 128
-    if dct_up is not False:
-        spatial_up = cv2.idct(dct_up * Q) + 128
-    if dct_right is not False:
-        spatial_right = cv2.idct(dct_right * Q) + 128
-    if dct_down is not False:
-        spatial_down = cv2.idct(dct_down * Q) + 128
-    for dc in DC_range:
-        mse1 = 0.
-        mse2 = 0.
-        mse3 = 0.
-        dct_target[0, 0] = dc
-        spatial_target = cv2.idct(dct_target * Q) + 128
-        if dct_left is not False:
-            mse1 += np.sum(np.square(spatial_left[0:8, 7] - spatial_target[0:8, 0])) / 8
-            mse2 += np.sum(np.square(spatial_left[0:7, 7] - spatial_target[1:8, 0])) / 7
-            mse3 += np.sum(np.square(spatial_left[1:8, 7] - spatial_target[0:7, 0])) / 7
-        if dct_up is not False:
-            mse1 += np.sum(np.square(spatial_up[7, 0:8] - spatial_target[0, 0:8])) / 8
-            mse2 += np.sum(np.square(spatial_up[7, 0:7] - spatial_target[0, 1:8])) / 7
-            mse3 += np.sum(np.square(spatial_up[7, 1:8] - spatial_target[0, 0:7])) / 7
-        if dct_right is not False:
-            mse1 += np.sum(np.square(spatial_right[0:8, 0] - spatial_target[0:8, 7])) / 8
-            mse2 += np.sum(np.square(spatial_right[0:7, 0] - spatial_target[1:8, 7])) / 7
-            mse3 += np.sum(np.square(spatial_right[1:8, 0] - spatial_target[0:7, 7])) / 7
-        if dct_down is not False:
-            mse1 += np.sum(np.square(spatial_down[0, 0:8] - spatial_target[7, 0:8])) / 8
-            mse2 += np.sum(np.square(spatial_down[0, 0:7] - spatial_target[7, 1:8])) / 7
-            mse3 += np.sum(np.square(spatial_down[0, 1:8] - spatial_target[7, 0:7])) / 7
-        mse = np.min([mse1, mse2, mse3])
-        if mse < mse_min:
-            mse_min = mse
-            dc_optimal = dc
-
-    return dc_optimal
 
 
 def estimate(dct_target, dct_left=False, dct_up=False, dct_right=False, dct_down=False):
@@ -362,11 +291,30 @@ def dc_recovery(image_path):
     return dct_preds, image_rec
 
 
-def main():
-    image_path = "../dataset/girlface.jpg"
-    _, image_rec = dc_recovery(image_path)
-    cv2.imwrite("../results/girlface_rec.jpg", image_rec)
-
-
 if __name__ == '__main__':
-    main()
+    argparser = argparse.ArgumentParser("DC recovery")
+    argparser.add_argument('--in-path', type=str, default='./images/sample.jpg', help="Input image path.")
+    argparser.add_argument('--out-path', type=str, default='./images/output.jpg', help="Output image path.")
+
+    args = argparser.parse_args()
+
+    # Initialisation
+    patch_size = 8
+    image_shape = (256, 256)
+    [w, h] = image_shape
+    w_n = w // patch_size
+    h_n = h // patch_size
+    DC_range = np.arange(-64, 65)
+
+    # Quantization matrix
+    Q = [[16, 11, 10, 16, 24, 40, 51, 61],
+         [12, 12, 14, 19, 26, 58, 60, 55],
+         [14, 13, 16, 24, 40, 57, 69, 56],
+         [14, 17, 22, 29, 51, 87, 80, 62],
+         [18, 22, 37, 56, 68, 109, 103, 77],
+         [24, 35, 55, 64, 81, 104, 113, 92],
+         [49, 64, 78, 87, 103, 121, 120, 101],
+         [72, 92, 95, 98, 112, 100, 130, 99]]
+
+    _, image_rec = dc_recovery(args.in_path)
+    cv2.imwrite(args.out_path, image_rec)
